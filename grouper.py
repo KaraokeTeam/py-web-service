@@ -37,11 +37,6 @@ class Group:
             return self.pitch_arr[len(self.pitch_arr) - 1].time
 
 
-if len(sys.argv) < 2:
-    print("Usage: %s <filename> [samplerate]" % sys.argv[0])
-    sys.exit(1)
-
-
 def get_note_groups(filename):
     filename = sys.argv[1]
     f = open(filename[:filename.find('.')] + '.txt', 'w')
@@ -96,61 +91,63 @@ def get_note_groups(filename):
         if read < hop_s:
             return groups
 
+        def array_from_text_file(filename, dtype='float'):
+            filename = os.path.join(os.path.dirname(__file__), filename)
+            return array([line.split() for line in open(filename).readlines()],
+                         dtype=dtype)
 
-f2 = open("note_groups.txt", "w")
-result = get_note_groups(sys.argv[1])
-for group in result:
-    f2.write("Start: %f\t End: %f\t Note: %s\n" % (group.get_start(), group.get_end(), group.note));
+        def plot_pitches(filename, pitches, confidences, tolerance=0.8, hop_s=(512 // 1), samplerate=(0 // 1)):
+            skip = 1
+            pitches = array(pitches[skip:])
+            confidences = array(confidences[skip:])
+            times = [t * hop_s for t in range(len(pitches))]
 
+            fig = plt.figure()
 
-def array_from_text_file(filename, dtype='float'):
-    filename = os.path.join(os.path.dirname(__file__), filename)
-    return array([line.split() for line in open(filename).readlines()],
-                 dtype=dtype)
+            ax1 = fig.add_subplot(311)
+            ax1 = get_waveform_plot(filename, samplerate=samplerate, block_size=hop_s, ax=ax1)
+            plt.setp(ax1.get_xticklabels(), visible=False)
+            ax1.set_xlabel('')
 
+            ax2 = fig.add_subplot(312, sharex=ax1)
+            ground_truth = os.path.splitext(filename)[0] + '.f0.Corrected'
+            if os.path.isfile(ground_truth):
+                ground_truth = array_from_text_file(ground_truth)
+                true_freqs = ground_truth[:, 2]
+                true_freqs = ma.masked_where(true_freqs < 2, true_freqs)
+                true_times = float(samplerate) * ground_truth[:, 0]
+                ax2.plot(true_times, true_freqs, 'r')
+                ax2.axis(ymin=0.9 * true_freqs.min(), ymax=1.1 * true_freqs.max())
+            # plot raw pitches
+            # ax2.plot(times, pitches, '.-')
+            # plot cleaned up pitches
+            cleaned_pitches = pitches
+            cleaned_pitches = ma.masked_where(cleaned_pitches < 0, cleaned_pitches)
+            cleaned_pitches = ma.masked_where(cleaned_pitches > 120, cleaned_pitches)
+            cleaned_pitches = ma.masked_where(confidences < tolerance, cleaned_pitches)
+            ax2.plot(times, cleaned_pitches, 'b.')
+            ax2.axis(ymin=0.9 * cleaned_pitches.min(), ymax=1.1 * cleaned_pitches.max())
+            # ax2.axis( ymin = 55, ymax = 70 )
+            plt.setp(ax2.get_xticklabels(), visible=False)
+            ax2.set_ylabel('f0 (midi)')
+            # plot confidence
+            ax3 = fig.add_subplot(313, sharex=ax1)
+            # plot the confidence
+            ax3.plot(times, confidences)
+            # draw a line at tolerance
+            ax3.plot(times, [tolerance] * len(confidences))
+            ax3.axis(xmin=times[0], xmax=times[-1])
+            ax3.set_ylabel('confidence')
+            set_xlabels_sample2time(ax3, times[-1], samplerate)
+            savefig(filename + 'fig.png')
+            plt.show()
 
-def plot_pitches(filename, pitches, confidences, tolerance=0.8, hop_s=(512 // 1), samplerate=(0 // 1)):
-    skip = 1
-    pitches = array(pitches[skip:])
-    confidences = array(confidences[skip:])
-    times = [t * hop_s for t in range(len(pitches))]
-
-    fig = plt.figure()
-
-    ax1 = fig.add_subplot(311)
-    ax1 = get_waveform_plot(filename, samplerate=samplerate, block_size=hop_s, ax=ax1)
-    plt.setp(ax1.get_xticklabels(), visible=False)
-    ax1.set_xlabel('')
-
-    ax2 = fig.add_subplot(312, sharex=ax1)
-    ground_truth = os.path.splitext(filename)[0] + '.f0.Corrected'
-    if os.path.isfile(ground_truth):
-        ground_truth = array_from_text_file(ground_truth)
-        true_freqs = ground_truth[:, 2]
-        true_freqs = ma.masked_where(true_freqs < 2, true_freqs)
-        true_times = float(samplerate) * ground_truth[:, 0]
-        ax2.plot(true_times, true_freqs, 'r')
-        ax2.axis(ymin=0.9 * true_freqs.min(), ymax=1.1 * true_freqs.max())
-    # plot raw pitches
-    # ax2.plot(times, pitches, '.-')
-    # plot cleaned up pitches
-    cleaned_pitches = pitches
-    cleaned_pitches = ma.masked_where(cleaned_pitches < 0, cleaned_pitches)
-    cleaned_pitches = ma.masked_where(cleaned_pitches > 120, cleaned_pitches)
-    cleaned_pitches = ma.masked_where(confidences < tolerance, cleaned_pitches)
-    ax2.plot(times, cleaned_pitches, 'b.')
-    ax2.axis(ymin=0.9 * cleaned_pitches.min(), ymax=1.1 * cleaned_pitches.max())
-    # ax2.axis( ymin = 55, ymax = 70 )
-    plt.setp(ax2.get_xticklabels(), visible=False)
-    ax2.set_ylabel('f0 (midi)')
-    # plot confidence
-    ax3 = fig.add_subplot(313, sharex=ax1)
-    # plot the confidence
-    ax3.plot(times, confidences)
-    # draw a line at tolerance
-    ax3.plot(times, [tolerance] * len(confidences))
-    ax3.axis(xmin=times[0], xmax=times[-1])
-    ax3.set_ylabel('confidence')
-    set_xlabels_sample2time(ax3, times[-1], samplerate)
-    savefig(filename + 'fig.png')
-    plt.show()
+# if this is the running module execute, if its imported dont
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("Usage: %s <filename> [samplerate]" % sys.argv[0])
+        sys.exit(1)
+    f2 = open("note_groups.txt", "w")
+    result = get_note_groups(sys.argv[1])
+    for group in result:
+        f2.write("Start: %f\t End: %f\t Note: %s\n" % (group.get_start(), group.get_end(), group.note));
