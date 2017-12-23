@@ -10,6 +10,7 @@ def index():
     return 'Karaoke Team'
 
 
+# change to post
 @app.route('/group', methods=['POST'])
 def get_group():
     file = request.files['file']
@@ -18,6 +19,7 @@ def get_group():
     return Response(jsonify(groups), status=200, mimetype='application/json')
 
 
+# change to post
 @app.route('/grade', methods=['POST'])
 def get_grade():
     file = request.files['file']
