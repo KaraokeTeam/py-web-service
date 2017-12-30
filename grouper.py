@@ -28,17 +28,16 @@ class Group:
 
     def get_start(self):
 
-        if (len(self.pitch_arr) > 0):
+        if len(self.pitch_arr) > 0:
             return self.pitch_arr[0].time
         return 0
 
     def get_end(self):
-        if (len(self.pitch_arr) > 0):
+        if len(self.pitch_arr) > 0:
             return self.pitch_arr[len(self.pitch_arr) - 1].time
 
 
 def get_note_groups(filename):
-    filename = sys.argv[1]
     f = open(filename[:filename.find('.')] + '.txt', 'w')
     downsample = 1
     # 0 is default sample rate
@@ -93,8 +92,7 @@ def get_note_groups(filename):
 
         def array_from_text_file(filename, dtype='float'):
             filename = os.path.join(os.path.dirname(__file__), filename)
-            return array([line.split() for line in open(filename).readlines()],
-                         dtype=dtype)
+            return array([line.split() for line in open(filename).readlines()],dtype=dtype)
 
         def plot_pitches(filename, pitches, confidences, tolerance=0.8, hop_s=(512 // 1), samplerate=(0 // 1)):
             skip = 1
