@@ -24,8 +24,9 @@ def get_group():
 def get_grade():
     file = request.files['file']
     file.save(utils.secure_filename(file.filename))
-    # algorithm works
-    return Response(status=200)
+    # algorithm works - gives answer
+    alg_answer = "65"
+    return Response(response=alg_answer, status=200)
 
 
 if __name__ == "__main__":
