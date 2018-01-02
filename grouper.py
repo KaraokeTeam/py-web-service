@@ -16,6 +16,9 @@ class Pitch:
         self.raw_pitch = raw_pitch
         self.conf = conf
 
+    def __str__(self):
+        return "TIME : " + "{:.3f}".format(self.time) + " FREQ : " + "{:.4f}".format(self.raw_pitch) + " CONFIDENCE : " + "{:.3f}".format(self.conf)
+
     def get_note(self):
         num = int(round(self.raw_pitch)) % 12
         return notes[num]
@@ -25,6 +28,12 @@ class Group:
     def __init__(self, note):
         self.note = note
         self.pitch_arr = []
+
+    def __str__(self):
+        result = "NOTE : " + self.note + "\n PITCHES: \n"
+        for pitch in self.pitch_arr:
+            result += "\t" + str(pitch) + "\n"
+        return result
 
     def get_start(self):
 
@@ -90,8 +99,8 @@ def get_note_groups(filename):
         if read < hop_s:
             return groups
 
+
 def get_pitches(filename):
-    f = open(filename[:filename.find('.')] + '.txt', 'w')
     downsample = 1
     # 0 is default sample rate
     samplerate = 0 // downsample
@@ -107,10 +116,6 @@ def get_pitches(filename):
     pitch_o.set_tolerance(tolerance)
 
     pitches = []
-    confidences = []
-    groups = []
-    previous = Pitch(0, 0, 0)
-    new_group = None
     # total number of frames read
     total_frames = 0
     while True:
@@ -118,21 +123,13 @@ def get_pitches(filename):
         raw_pitch = pitch_o(samples)[0]
         confidence = pitch_o.get_confidence()
         current = Pitch(time=float((total_frames / float(samplerate))), conf=confidence, raw_pitch=raw_pitch)
-        # if confidence < 0.8: pitch = 0.
-        # print("%f %f %f" % (total_frames / float(samplerate), pitch, confidence))
         if confidence > 0.8:
-            # not the same note as the previous pitch - open a new group
+            pitches += [current]
 
+        total_frames += read
+        if read < hop_s:
+            return pitches
 
-            f.write(
-                "Time : %f\tPitch :  %f\tConfidence : %f\n" % (total_frames / float(samplerate), raw_pitch, confidence))
-
-            pitches += [pitch]
-            confidences += [confidence]
-            total_frames += read
-            previous = current
-            if read < hop_s:
-                return pitches;
 
 def array_from_text_file(filename, dtype='float'):
     filename = os.path.join(os.path.dirname(__file__), filename)
@@ -188,11 +185,16 @@ def plot_pitches(filename, pitches, confidences, tolerance=0.8, hop_s=(512 // 1)
 
 # if this is the running module execute, if its imported dont
 if __name__ == "__main__":
-    get_pitches(sys.argv[1])
-    #if len(sys.argv) < 2:
+    pitch_arr = get_pitches(sys.argv[1])
+    groups = get_note_groups(sys.argv[1])
+    for group in groups:
+        print(group)
+    for pitch in pitch_arr:
+        print(pitch)
+    # if len(sys.argv) < 2:
     #    print("Usage: %s <filename> [samplerate]" % sys.argv[0])
     #    sys.exit(1)
-    #f2 = open("note_groups.txt", "w")
-    #result = get_note_groups(sys.argv[1])
-    #for group in result:
+    # f2 = open("note_groups.txt", "w")
+    # result = get_note_groups(sys.argv[1])
+    # for group in result:
     #    f2.write("Start: %f\t End: %f\t Note: %s\n" % (group.get_start(), group.get_end(), group.note));
