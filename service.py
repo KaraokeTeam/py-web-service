@@ -1,6 +1,8 @@
 import grouper
 from flask import Flask, jsonify, request, Response
 from werkzeug import utils
+import os
+import ffmpy
 
 app = Flask(__name__)
 
@@ -15,6 +17,13 @@ def index():
 def get_group():
     file = request.files['file']
     file.save(utils.secure_filename(file.filename))
+    if any(File == 'output.wav' for File in os.listdir(".")):
+        os.remove('output.wav')
+        # convert the file to wav using ffmpeg
+    ff = ffmpy.FFmpeg(inputs={utils.secure_filename(file.filename): None}, outputs={'output.wav': None})
+    ff.run()
+    # keep only the original
+    os.remove(file.filename)
     groups = grouper.get_note_groups(file.filename)
     return Response(jsonify(groups), status=200, mimetype='application/json')
 
@@ -24,6 +33,14 @@ def get_group():
 def get_grade():
     file = request.files['file']
     file.save(utils.secure_filename(file.filename))
+    # if an output file already exists delete it
+    if any(File == 'output.wav' for File in os.listdir(".")):
+        os.remove('output.wav')
+    # convert the file to wav using ffmpeg
+    ff = ffmpy.FFmpeg(inputs={utils.secure_filename(file.filename): None}, outputs={'output.wav': None})
+    ff.run()
+    # keep only the original
+    os.remove(file.filename)
     # algorithm works - gives answer
     alg_answer = "65"
     return Response(response=alg_answer, status=200)
