@@ -5,9 +5,17 @@ from numpy import array, ma
 import matplotlib.pyplot as plt
 from pylab import savefig
 from demo_waveform_plot import get_waveform_plot, set_xlabels_sample2time
-
+import json
 # maybe save all octaves too?
 notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+
+notes_by_hertz= [32.7, 34.6, 36.7, 38.9, 41.2 ,43.7 ,46.2 ,49.0 ,51.9 ,55.0 ,58.3 ,61.7 ,65.4 ,69.3
+    ,73.4 ,77.8 ,82.4 ,87.3 ,92.5 ,98.0 ,103.8 ,110.0 ,116.5 ,123.5 ,130.8 ,138.6 ,146.8 ,155.6 ,164.8
+    ,174.6 ,185.0 ,196.0 ,207.7 ,220.0 ,233.1 ,246.9 ,261.6 ,277.2 ,293.7 ,311.1 ,329.6 ,349.2 ,370.0
+    ,392.0 ,415.3 ,440.0 ,466.2 ,493.9 ,523.3 ,554.4 ,587.3 ,622.3 ,659.3 ,698.5 ,740.0 ,784.0 ,830.6
+    ,880.0 ,932.3 ,987.8 ,1046.5 ,1108.7 ,1174.7 ,1244.5 ,1318.5 ,1396.9 ,1480.0 ,1568.0 ,1661.2 ,1760.0
+    ,1864.7 ,1975.5 ,2093.0 ,2217.5 ,2349.3 ,2489.0 ,2637.0 ,2793.8 ,2960.0 ,3136.0 ,3322.4 ,3520.0
+    ,3729.3 ,3951.1]
 
 
 class Pitch:
@@ -17,7 +25,7 @@ class Pitch:
         self.conf = conf
 
     def __str__(self):
-        return "TIME : " + "{:.3f}".format(self.time) + " FREQ : " + "{:.4f}".format(self.raw_pitch) + " CONFIDENCE : " + "{:.3f}".format(self.conf)
+        return "TIME : " + "{:.3f}".format(self.time) + " FREQ : " + "{:.4f}".format(self.raw_pitch) + " CONFIDENCE : " + "{:.3f}".format(self.conf) + "\n"
 
     def get_note(self):
         num = int(round(self.raw_pitch)) % 12
@@ -45,14 +53,30 @@ class Group:
         if len(self.pitch_arr) > 0:
             return self.pitch_arr[len(self.pitch_arr) - 1].time
 
+def compare(original,performance):
+
+    if len(original)<len(performance):
+        size=len(original)
+    else:
+        size=len(performance)
+    i=0
+    counter=0
+    while i<size :
+        if original[i].note != performance[i].note :
+            counter=counter+1
+            #print(original[i].note +" "+ str(original[i].get_start()) + " " +performance[i].note +" "+ str(performance[i].get_start()))
+        i=i+1
+    return counter
+
+
+
 
 def get_note_groups(filename):
     f = open(filename[:filename.find('.')] + '.txt', 'w')
     downsample = 1
     # 0 is default sample rate
     samplerate = 0 // downsample
-    if len(sys.argv) > 2:
-        samplerate = int(sys.argv[2])
+
 
     win_s = 4096 // downsample  # fft size
     hop_s = 512 // downsample  # hop size
@@ -84,13 +108,13 @@ def get_note_groups(filename):
                 new_group = Group(note=current.get_note())
                 new_group.pitch_arr += [current]
                 groups += [new_group]
+                f.write(str(new_group))
                 # same note as the previous pitch - add it to existing group
             else:
                 if new_group is not None:
                     new_group.pitch_arr += [current]
 
-            f.write(
-                "Time : %f\tPitch :  %f\tConfidence : %f\n" % (total_frames / float(samplerate), raw_pitch, confidence))
+
 
         pitches += [pitch]
         confidences += [confidence]
@@ -101,6 +125,7 @@ def get_note_groups(filename):
 
 
 def get_pitches(filename):
+
     downsample = 1
     # 0 is default sample rate
     samplerate = 0 // downsample
@@ -123,13 +148,40 @@ def get_pitches(filename):
         raw_pitch = pitch_o(samples)[0]
         confidence = pitch_o.get_confidence()
         current = Pitch(time=float((total_frames / float(samplerate))), conf=confidence, raw_pitch=raw_pitch)
+        hz, octave, note= get_note_octave_deviation(raw_pitch)
         if confidence > 0.8:
             pitches += [current]
+            #f.write("hertz: " + str(raw_pitch)+" octave: "+str(octave)+" note: "+ str(note) + "\n")
 
         total_frames += read
         if read < hop_s:
             return pitches
 
+
+def get_note_octave_deviation(num):
+    i=0
+    if (num > notes_by_hertz[len(notes_by_hertz)-1]):
+        return(notes_by_hertz[len(notes_by_hertz)-1],7,notes[11])
+    else:
+        while num > notes_by_hertz[i]:
+            i=i+1
+
+
+    distance1=abs(float(num - notes_by_hertz[i]))
+    distance2=abs(float(num - notes_by_hertz[i-1]))
+    if distance1 > distance2:
+        hz=notes_by_hertz[i-1]
+        distance=distance2
+    else :
+        hz=notes_by_hertz[i]
+        distance=distance1
+
+    note= notes[i%12]
+    i=i+1
+    octave=int(round(i/12))
+    octave=octave+1
+
+    return(hz,octave,note)
 
 def array_from_text_file(filename, dtype='float'):
     filename = os.path.join(os.path.dirname(__file__), filename)
@@ -185,12 +237,19 @@ def plot_pitches(filename, pitches, confidences, tolerance=0.8, hop_s=(512 // 1)
 
 # if this is the running module execute, if its imported dont
 if __name__ == "__main__":
+    f = open("til.txt", 'w')
     pitch_arr = get_pitches(sys.argv[1])
-    groups = get_note_groups(sys.argv[1])
-    for group in groups:
-        print(group)
-    for pitch in pitch_arr:
-        print(pitch)
+    original = get_note_groups(sys.argv[1])
+    performance = get_note_groups(sys.argv[2])
+    mis=compare(original,performance)
+    print(mis)
+    print(len(original))
+    # for group in groups:
+    #    print(group)
+    #    print(group)
+    #    f.write(str(group) + "\n")
+    #for pitch in pitch_arr:
+    #    print(pitch)
     # if len(sys.argv) < 2:
     #    print("Usage: %s <filename> [samplerate]" % sys.argv[0])
     #    sys.exit(1)

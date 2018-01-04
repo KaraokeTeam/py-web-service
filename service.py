@@ -42,8 +42,10 @@ def get_grade():
     # keep only the original
     os.remove(file.filename)
     # algorithm works - gives answer
-    alg_answer = "65"
-    return Response(response=alg_answer, status=200)
+    original = grouper.get_note_groups("zlil-meitar.wav")
+    client = grouper.get_note_groups("output.wav")
+    res = grouper.compare(original,client)
+    return Response(response=res, status=200)
 
 
 if __name__ == "__main__":
