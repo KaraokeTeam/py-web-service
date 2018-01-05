@@ -6,16 +6,18 @@ import matplotlib.pyplot as plt
 from pylab import savefig
 from demo_waveform_plot import get_waveform_plot, set_xlabels_sample2time
 import json
+import time
+
 # maybe save all octaves too?
 notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
-notes_by_hertz= [32.7, 34.6, 36.7, 38.9, 41.2 ,43.7 ,46.2 ,49.0 ,51.9 ,55.0 ,58.3 ,61.7 ,65.4 ,69.3
-    ,73.4 ,77.8 ,82.4 ,87.3 ,92.5 ,98.0 ,103.8 ,110.0 ,116.5 ,123.5 ,130.8 ,138.6 ,146.8 ,155.6 ,164.8
-    ,174.6 ,185.0 ,196.0 ,207.7 ,220.0 ,233.1 ,246.9 ,261.6 ,277.2 ,293.7 ,311.1 ,329.6 ,349.2 ,370.0
-    ,392.0 ,415.3 ,440.0 ,466.2 ,493.9 ,523.3 ,554.4 ,587.3 ,622.3 ,659.3 ,698.5 ,740.0 ,784.0 ,830.6
-    ,880.0 ,932.3 ,987.8 ,1046.5 ,1108.7 ,1174.7 ,1244.5 ,1318.5 ,1396.9 ,1480.0 ,1568.0 ,1661.2 ,1760.0
-    ,1864.7 ,1975.5 ,2093.0 ,2217.5 ,2349.3 ,2489.0 ,2637.0 ,2793.8 ,2960.0 ,3136.0 ,3322.4 ,3520.0
-    ,3729.3 ,3951.1]
+notes_by_hertz = [32.7, 34.6, 36.7, 38.9, 41.2, 43.7, 46.2, 49.0, 51.9, 55.0, 58.3, 61.7, 65.4, 69.3
+    , 73.4, 77.8, 82.4, 87.3, 92.5, 98.0, 103.8, 110.0, 116.5, 123.5, 130.8, 138.6, 146.8, 155.6, 164.8
+    , 174.6, 185.0, 196.0, 207.7, 220.0, 233.1, 246.9, 261.6, 277.2, 293.7, 311.1, 329.6, 349.2, 370.0
+    , 392.0, 415.3, 440.0, 466.2, 493.9, 523.3, 554.4, 587.3, 622.3, 659.3, 698.5, 740.0, 784.0, 830.6
+    , 880.0, 932.3, 987.8, 1046.5, 1108.7, 1174.7, 1244.5, 1318.5, 1396.9, 1480.0, 1568.0, 1661.2, 1760.0
+    , 1864.7, 1975.5, 2093.0, 2217.5, 2349.3, 2489.0, 2637.0, 2793.8, 2960.0, 3136.0, 3322.4, 3520.0
+    , 3729.3, 3951.1]
 
 
 class Pitch:
@@ -25,17 +27,29 @@ class Pitch:
         self.conf = conf
 
     def __str__(self):
-        return "TIME : " + "{:.3f}".format(self.time) + " FREQ : " + "{:.4f}".format(self.raw_pitch) + " CONFIDENCE : " + "{:.3f}".format(self.conf) + "\n"
+        return "TIME : " + "{:.3f}".format(self.time) + " FREQ : " + "{:.4f}".format(
+            self.raw_pitch) + " CONFIDENCE : " + "{:.3f}".format(self.conf) + "\n"
 
     def get_note(self):
         num = int(round(self.raw_pitch)) % 12
         return notes[num]
 
+    def repr_json(self):
+        return dict(t=str(self.time), r=str(self.raw_pitch), c=str(self.conf))
+
+
+class ComplexJsonEncoder(json.JSONEncoder):
+    def default(self, o):
+        if hasattr(o, 'repr_json'):
+            return o.repr_json()
+        else:
+            return json.JSONEncoder.default(self, o)
+
 
 class Group:
-    def __init__(self, note):
+    def __init__(self, note, pitches=[]):
         self.note = note
-        self.pitch_arr = []
+        self.pitch_arr = pitches
 
     def __str__(self):
         result = "NOTE : " + self.note + "\n PITCHES: \n"
@@ -43,8 +57,13 @@ class Group:
             result += "\t" + str(pitch) + "\n"
         return result
 
-    def get_start(self):
+    def repr_json(self):
+        group_dict = dict(n=str(self.note), p=[])
+        for p in self.pitch_arr:
+            group_dict['p'].append(p.repr_json())
+        return group_dict
 
+    def get_start(self):
         if len(self.pitch_arr) > 0:
             return self.pitch_arr[0].time
         return 0
@@ -53,22 +72,37 @@ class Group:
         if len(self.pitch_arr) > 0:
             return self.pitch_arr[len(self.pitch_arr) - 1].time
 
-def compare(original,performance):
 
-    if len(original)<len(performance):
-        size=len(original)
+class GroupArray:
+    def __init__(self, groups):
+        self.groups = groups
+
+    def repr_json(self):
+        groups_dict = dict(groups=[])
+        for group in self.groups:
+            groups_dict['groups'].append(group)
+        return groups_dict
+
+    def __str__(self):
+        result = ""
+        for group in self.groups:
+            result += group.__str__() + '\n'
+        return result
+
+
+def compare(original, performance):
+    if len(original.groups) < len(performance.groups):
+        size = len(original)
     else:
-        size=len(performance)
-    i=0
-    counter=0
-    while i<size :
-        if original[i].note != performance[i].note :
-            counter=counter+1
-            #print(original[i].note +" "+ str(original[i].get_start()) + " " +performance[i].note +" "+ str(performance[i].get_start()))
-        i=i+1
+        size = len(performance.groups)
+    i = 0
+    counter = 0
+    while i < size:
+        if original.groups[i].note != performance.groups[i].note:
+            counter = counter + 1
+            # print(original[i].note +" "+ str(original[i].get_start()) + " " +performance[i].note +" "+ str(performance[i].get_start()))
+        i = i + 1
     return counter
-
-
 
 
 def get_note_groups(filename):
@@ -76,7 +110,6 @@ def get_note_groups(filename):
     downsample = 1
     # 0 is default sample rate
     samplerate = 0 // downsample
-
 
     win_s = 4096 // downsample  # fft size
     hop_s = 512 // downsample  # hop size
@@ -114,18 +147,15 @@ def get_note_groups(filename):
                 if new_group is not None:
                     new_group.pitch_arr += [current]
 
-
-
         pitches += [pitch]
         confidences += [confidence]
         total_frames += read
         previous = current
         if read < hop_s:
-            return groups
+            return GroupArray(groups)
 
 
 def get_pitches(filename):
-
     downsample = 1
     # 0 is default sample rate
     samplerate = 0 // downsample
@@ -148,10 +178,10 @@ def get_pitches(filename):
         raw_pitch = pitch_o(samples)[0]
         confidence = pitch_o.get_confidence()
         current = Pitch(time=float((total_frames / float(samplerate))), conf=confidence, raw_pitch=raw_pitch)
-        hz, octave, note= get_note_octave_deviation(raw_pitch)
+        hz, octave, note = get_note_octave_deviation(raw_pitch)
         if confidence > 0.8:
             pitches += [current]
-            #f.write("hertz: " + str(raw_pitch)+" octave: "+str(octave)+" note: "+ str(note) + "\n")
+            # f.write("hertz: " + str(raw_pitch)+" octave: "+str(octave)+" note: "+ str(note) + "\n")
 
         total_frames += read
         if read < hop_s:
@@ -159,29 +189,29 @@ def get_pitches(filename):
 
 
 def get_note_octave_deviation(num):
-    i=0
-    if (num > notes_by_hertz[len(notes_by_hertz)-1]):
-        return(notes_by_hertz[len(notes_by_hertz)-1],7,notes[11])
+    i = 0
+    if (num > notes_by_hertz[len(notes_by_hertz) - 1]):
+        return (notes_by_hertz[len(notes_by_hertz) - 1], 7, notes[11])
     else:
         while num > notes_by_hertz[i]:
-            i=i+1
+            i = i + 1
 
-
-    distance1=abs(float(num - notes_by_hertz[i]))
-    distance2=abs(float(num - notes_by_hertz[i-1]))
+    distance1 = abs(float(num - notes_by_hertz[i]))
+    distance2 = abs(float(num - notes_by_hertz[i - 1]))
     if distance1 > distance2:
-        hz=notes_by_hertz[i-1]
-        distance=distance2
-    else :
-        hz=notes_by_hertz[i]
-        distance=distance1
+        hz = notes_by_hertz[i - 1]
+        distance = distance2
+    else:
+        hz = notes_by_hertz[i]
+        distance = distance1
 
-    note= notes[i%12]
-    i=i+1
-    octave=int(round(i/12))
-    octave=octave+1
+    note = notes[i % 12]
+    i = i + 1
+    octave = int(round(i / 12))
+    octave = octave + 1
 
-    return(hz,octave,note)
+    return (hz, octave, note)
+
 
 def array_from_text_file(filename, dtype='float'):
     filename = os.path.join(os.path.dirname(__file__), filename)
@@ -235,25 +265,31 @@ def plot_pitches(filename, pitches, confidences, tolerance=0.8, hop_s=(512 // 1)
         plt.show()
 
 
+def groups_array_to_json(filename, groups):
+    f = open(filename, "w")
+    json.dump(groups, fp=f, cls=ComplexJsonEncoder)
+
+
+def json_to_groups_array(filename):
+    groups_dict = json.load(fp=open(filename, "r"))
+    result = []
+    for group in groups_dict['groups']:
+        pitch_arr = []
+        for pitch in group['p']:
+            pitch_object = Pitch(time=float(pitch['t']), raw_pitch=float(pitch['r']),
+                                 conf=float(pitch['c']))
+            pitch_arr.append(pitch)
+        result.append(Group(group['n'], pitch_arr))
+    return GroupArray(result)
+
+
 # if this is the running module execute, if its imported dont
 if __name__ == "__main__":
-    f = open("til.txt", 'w')
-    pitch_arr = get_pitches(sys.argv[1])
-    original = get_note_groups(sys.argv[1])
-    performance = get_note_groups(sys.argv[2])
-    mis=compare(original,performance)
-    print(mis)
-    print(len(original))
-    # for group in groups:
-    #    print(group)
-    #    print(group)
-    #    f.write(str(group) + "\n")
-    #for pitch in pitch_arr:
-    #    print(pitch)
-    # if len(sys.argv) < 2:
-    #    print("Usage: %s <filename> [samplerate]" % sys.argv[0])
-    #    sys.exit(1)
-    # f2 = open("note_groups.txt", "w")
-    # result = get_note_groups(sys.argv[1])
-    # for group in result:
-    #    f2.write("Start: %f\t End: %f\t Note: %s\n" % (group.get_start(), group.get_end(), group.note));
+    groups_array_to_json("zlil.json", get_note_groups("zlil-meitar.wav"))
+    groups_array = json_to_groups_array("zlil.json")
+    # print(str(groups_array))
+    # performance = get_note_groups(sys.argv[2])
+    # mis = compare(original, performance)
+    # print(mis)
+    # print(len(original))
+
