@@ -1,5 +1,5 @@
 import sys
-from aubio import source, pitch
+from aubio import source, pitch, onset
 import os.path
 from numpy import array, ma
 import matplotlib.pyplot as plt
@@ -155,7 +155,33 @@ def get_note_groups(filename):
             return GroupArray(groups)
 
 
+def get_onsets(filename):
+    f = open(filename[:filename.find(".")] + "_onsets.txt", "w")
+    win_s = 512  # fft size
+    hop_s = win_s // 2  # hop size
+    samplerate = 0
+
+    s = source(filename, samplerate, hop_s)
+    samplerate = s.samplerate
+
+    o = onset("default", win_s, hop_s, samplerate)
+    # list of onsets, in samples
+    onsets = []
+
+    # total number of frames read
+    total_frames = 0
+    while True:
+        samples, read = s()
+        if o(samples):
+            f.write("{:.3f}".format(o.get_last_s()) + "\n")
+            onsets.append(o.get_last_s())
+        total_frames += read
+        if read < hop_s:
+            return onsets
+
+
 def get_pitches(filename):
+    f = open(filename[:filename.find(".")] + "_pitches.txt", "w")
     downsample = 1
     # 0 is default sample rate
     samplerate = 0 // downsample
@@ -181,7 +207,7 @@ def get_pitches(filename):
         hz, octave, note = get_note_octave_deviation(raw_pitch)
         if confidence > 0.8:
             pitches += [current]
-            # f.write("hertz: " + str(raw_pitch)+" octave: "+str(octave)+" note: "+ str(note) + "\n")
+            f.write("%.3f,%.3f,%.3f\n" % (current.time, current.raw_pitch, current.conf))
 
         total_frames += read
         if read < hop_s:
@@ -285,11 +311,13 @@ def json_to_groups_array(filename):
 
 # if this is the running module execute, if its imported dont
 if __name__ == "__main__":
-    groups_array_to_json("zlil.json", get_note_groups("zlil-meitar.wav"))
-    groups_array = json_to_groups_array("zlil.json")
-    # print(str(groups_array))
-    # performance = get_note_groups(sys.argv[2])
-    # mis = compare(original, performance)
-    # print(mis)
-    # print(len(original))
-
+    # groups_array_to_json("zlil.json", get_note_groups("zlil-meitar.wav"))
+    # groups_array = json_to_groups_array("zlil.json")
+    groups = get_note_groups(sys.argv[1])
+    for group in groups.groups:
+        print(group)
+        # print(str(groups_array))
+        # performance = get_note_groups(sys.argv[2])
+        # mis = compare(original, performance)
+        # print(mis)
+        # print(len(original))
