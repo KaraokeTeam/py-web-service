@@ -1,5 +1,5 @@
 import sys
-from aubio import source, pitch, onset
+from aubio import source, pitch
 import os.path
 from numpy import array, ma
 import matplotlib.pyplot as plt
@@ -50,27 +50,44 @@ class Group:
     def __init__(self, note, pitches=[]):
         self.note = note
         self.pitch_arr = pitches
+        self.start_time = -1
+        self.end_time = -1
+        self.samples_amount = -1
+        self.note_value = -1
+        self.duration = -1
+
 
     def __str__(self):
-        result = "NOTE : " + self.note + "\n PITCHES: \n"
+        result = "NOTE : " + self.note + "\n" +\
+        "\nstart_time : " + self.start_time + "\n" +\
+        "\nend_time : " + self.end_time + "\n" +\
+        "\nsamples_amount : " + self.samples_amount + "\n" +\
+        "\nnote_value : " + self.note_value + "\n" +\
+        "\n PITCHES: \n"
         for pitch in self.pitch_arr:
             result += "\t" + str(pitch) + "\n"
         return result
 
     def repr_json(self):
-        group_dict = dict(n=str(self.note), p=[])
-        for p in self.pitch_arr:
-            group_dict['p'].append(p.repr_json())
+        group_dict = dict(n=str(self.note),s=str(self.start_time),e=str(self.end_time),a=str(self.samples_amount),v=str(self.note_value),d=str(self.duration))
         return group_dict
 
-    def get_start(self):
+    def set_start(self):
         if len(self.pitch_arr) > 0:
-            return self.pitch_arr[0].time
-        return 0
+            self.start_time = self.pitch_arr[0].time
 
-    def get_end(self):
+
+    def set_end(self):
         if len(self.pitch_arr) > 0:
-            return self.pitch_arr[len(self.pitch_arr) - 1].time
+            self.end_time = self.pitch_arr[len(self.pitch_arr) - 1].time
+
+    def set_samples_amount(self):
+        samples_counter=0
+        for pitch in self.pitch_arr:
+            samples_counter=samples_counter+1
+
+    def set_duration(self):
+        self.duration=self.end_time-self.start_time
 
 
 class GroupArray:
@@ -88,6 +105,18 @@ class GroupArray:
         for group in self.groups:
             result += group.__str__() + '\n'
         return result
+
+    def set_groups_value(self):
+        total_time=0
+        for group in self.groups:
+            group.set_start()
+            group.set_end()
+            group.set_duration()
+            group.set_samples_amount()
+            total_time=total_time+(group.end_time-group.start_time)
+        for group in self.groups:
+            group.note_value=(group.end_time-group.start_time)/total_time
+        return self;
 
 
 def compare(original, performance):
@@ -152,36 +181,10 @@ def get_note_groups(filename):
         total_frames += read
         previous = current
         if read < hop_s:
-            return GroupArray(groups)
-
-
-def get_onsets(filename):
-    f = open(filename[:filename.find(".")] + "_onsets.txt", "w")
-    win_s = 512  # fft size
-    hop_s = win_s // 2  # hop size
-    samplerate = 0
-
-    s = source(filename, samplerate, hop_s)
-    samplerate = s.samplerate
-
-    o = onset("default", win_s, hop_s, samplerate)
-    # list of onsets, in samples
-    onsets = []
-
-    # total number of frames read
-    total_frames = 0
-    while True:
-        samples, read = s()
-        if o(samples):
-            f.write("{:.3f}".format(o.get_last_s()) + "\n")
-            onsets.append(o.get_last_s())
-        total_frames += read
-        if read < hop_s:
-            return onsets
+            return GroupArray(groups).set_groups_value();
 
 
 def get_pitches(filename):
-    f = open(filename[:filename.find(".")] + "_pitches.txt", "w")
     downsample = 1
     # 0 is default sample rate
     samplerate = 0 // downsample
@@ -207,7 +210,7 @@ def get_pitches(filename):
         hz, octave, note = get_note_octave_deviation(raw_pitch)
         if confidence > 0.8:
             pitches += [current]
-            f.write("%.3f,%.3f,%.3f\n" % (current.time, current.raw_pitch, current.conf))
+            # f.write("hertz: " + str(raw_pitch)+" octave: "+str(octave)+" note: "+ str(note) + "\n")
 
         total_frames += read
         if read < hop_s:
@@ -311,13 +314,11 @@ def json_to_groups_array(filename):
 
 # if this is the running module execute, if its imported dont
 if __name__ == "__main__":
-    # groups_array_to_json("zlil.json", get_note_groups("zlil-meitar.wav"))
+    groups_array_to_json("zlil.json", get_note_groups("zlil-meitar.wav"))
     # groups_array = json_to_groups_array("zlil.json")
-    groups = get_note_groups(sys.argv[1])
-    for group in groups.groups:
-        print(group)
-        # print(str(groups_array))
-        # performance = get_note_groups(sys.argv[2])
-        # mis = compare(original, performance)
-        # print(mis)
-        # print(len(original))
+    # print(str(groups_array))
+    # performance = get_note_groups(sys.argv[2])
+    # mis = compare(original, performance)
+    # print(mis)
+    # print(len(original))
+
