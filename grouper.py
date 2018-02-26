@@ -26,6 +26,11 @@ class Pitch:
         self.raw_pitch = raw_pitch
         self.conf = conf
 
+    @staticmethod
+    def new_pitch(time,raw_pitch,conf):
+        new_pitch = Pitch(time, raw_pitch, conf)
+        return new_pitch
+
     def __str__(self):
         return "TIME : " + "{:.3f}".format(self.time) + " FREQ : " + "{:.4f}".format(
             self.raw_pitch) + " CONFIDENCE : " + "{:.3f}".format(self.conf) + "\n"
@@ -47,22 +52,28 @@ class ComplexJsonEncoder(json.JSONEncoder):
 
 
 class Group:
-    def __init__(self, note, pitches=[]):
+    def __init__(self, note):
         self.note = note
-        self.pitch_arr = pitches
+        self.pitch_arr = []
         self.start_time = -1
         self.end_time = -1
         self.samples_amount = -1
         self.note_value = -1
         self.duration = -1
 
+    @staticmethod
+    def new_group(note):
+        new_group = Group(note)
+        new_group.pitch_arr = []
+        return new_group
+
 
     def __str__(self):
-        result = "NOTE : " + self.note + "\n" +\
-        "\nstart_time : " + self.start_time + "\n" +\
-        "\nend_time : " + self.end_time + "\n" +\
-        "\nsamples_amount : " + self.samples_amount + "\n" +\
-        "\nnote_value : " + self.note_value + "\n" +\
+        result = "NOTE : " + str(self.note) + "\n" +\
+        "\nstart_time : " + str(self.start_time) + "\n" +\
+        "\nend_time : " + str(self.end_time) + "\n" +\
+        "\nsamples_amount : " + str(self.samples_amount) + "\n" +\
+        "\nnote_value : " + str(self.note_value) + "\n" +\
         "\n PITCHES: \n"
         for pitch in self.pitch_arr:
             result += "\t" + str(pitch) + "\n"
@@ -82,9 +93,7 @@ class Group:
             self.end_time = self.pitch_arr[len(self.pitch_arr) - 1].time
 
     def set_samples_amount(self):
-        samples_counter=0
-        for pitch in self.pitch_arr:
-            samples_counter=samples_counter+1
+        self.samples_amount = self.pitch_arr.__len__()
 
     def set_duration(self):
         self.duration=self.end_time-self.start_time
@@ -161,27 +170,26 @@ def get_note_groups(filename):
         samples, read = s()
         raw_pitch = pitch_o(samples)[0]
         confidence = pitch_o.get_confidence()
-        current = Pitch(time=float((total_frames / float(samplerate))), conf=confidence, raw_pitch=raw_pitch)
+        current = Pitch.new_pitch(time=float((total_frames / float(samplerate))), conf=confidence, raw_pitch=raw_pitch)
         # if confidence < 0.8: pitch = 0.
         # print("%f %f %f" % (total_frames / float(samplerate), pitch, confidence))
         if 0 < raw_pitch < 128 and confidence > 0.8:
             # not the same note as the previous pitch - open a new group
             if int(round(current.raw_pitch)) != int(round(previous.raw_pitch)):
-                new_group = Group(note=current.get_note())
+                new_group = Group.new_group(current.get_note())
                 new_group.pitch_arr += [current]
                 groups += [new_group]
-                f.write(str(new_group))
                 # same note as the previous pitch - add it to existing group
             else:
                 if new_group is not None:
                     new_group.pitch_arr += [current]
 
-        pitches += [pitch]
+        pitches += [raw_pitch]
         confidences += [confidence]
         total_frames += read
         previous = current
         if read < hop_s:
-            return GroupArray(groups).set_groups_value();
+            return GroupArray(groups).set_groups_value()
 
 
 def get_pitches(filename):
@@ -314,7 +322,7 @@ def json_to_groups_array(filename):
 
 # if this is the running module execute, if its imported dont
 if __name__ == "__main__":
-    groups_array_to_json("zlil.json", get_note_groups("zlil-meitar.wav"))
+    groups_array_to_json("jinjit.json", get_note_groups("jinjit3.wav"))
     # groups_array = json_to_groups_array("zlil.json")
     # print(str(groups_array))
     # performance = get_note_groups(sys.argv[2])
